@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Broadcast — Multi-Platform Post Composer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<style>
+  :root{
+    --ink:#12141B;
+    --panel:#1B1E28;
+    --panel-raised:#232634;
+    --hairline:#333748;
+    --paper:#E9E9F0;
+    --paper-dim:#9296A8;
+    --amber:#F2A93B;
+    --green:#5FBF8F;
+    --red:#E5584B;
+    --thread:#6C77E0;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(circle at 15% 0%, rgba(108,119,224,0.08), transparent 45%),
+      var(--ink);
+    color:var(--paper);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+  }
+  ::selection{ background:var(--thread); color:white; }
+
+  .app{ max-width:1180px; margin:0 auto; padding:36px 24px 80px; }
+
+  /* ---------- Header ---------- */
+  .masthead{
+    display:flex; align-items:baseline; justify-content:space-between;
+    gap:16px; margin-bottom:6px; flex-wrap:wrap;
+  }
+  .masthead h1{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:clamp(28px,4vw,38px);
+    font-weight:700; margin:0; letter-spacing:-0.02em;
+  }
+  .masthead h1 span{ color:var(--thread); }
+  .masthead .clock{
+    font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--paper-dim);
+    letter-spacing:0.06em;
+  }
+  .subhead{
+    color:var(--paper-dim); font-size:14.5px; margin:0 0 34px; max-width:560px; line-height:1.55;
+  }
+
+  /* ---------- Layout ---------- */
+  .grid{
+    display:grid; grid-template-columns: 1.35fr 1fr; gap:22px;
+  }
+  @media (max-width: 880px){ .grid{ grid-template-columns:1fr; } }
+
+  .panel{
+    background:var(--panel); border:1px solid var(--hairline);
+    border-radius:var(--radius); padding:22px;
+  }
+  .panel + .panel{ margin-top:22px; }
+  .panel-label{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.14em;
+    text-transform:uppercase; color:var(--paper-dim); margin:0 0 16px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .panel-label::before{
+    content:''; width:6px; height:6px; border-radius:50%; background:var(--thread);
+  }
+
+  /* ---------- Platform picker ---------- */
+  .platforms{ display:flex; flex-wrap:wrap; gap:10px; }
+  .plat-btn{
+    display:flex; align-items:center; gap:9px;
+    background:var(--panel-raised); border:1px solid var(--hairline);
+    color:var(--paper); padding:9px 14px 9px 10px; border-radius:8px;
+    cursor:pointer; font-size:13.5px; font-weight:500; font-family:'Inter',sans-serif;
+    transition:border-color .15s, background .15s, transform .1s;
+  }
+  .plat-btn:hover{ transform:translateY(-1px); }
+  .plat-btn .dot{ width:9px; height:9px; border-radius:50%; flex:none; }
+  .plat-btn.active{
+    background:rgba(108,119,224,0.14); border-color:var(--thread); color:#fff;
+  }
+  .plat-btn .chk{
+    margin-left:2px; width:14px; height:14px; border-radius:4px;
+    border:1.5px solid var(--hairline); display:flex; align-items:center; justify-content:center;
+    font-size:10px; color:transparent;
+  }
+  .plat-btn.active .chk{ background:var(--thread); border-color:var(--thread); color:#fff; }
+
+  /* ---------- Composer tabs ---------- */
+  .tabs{ display:flex; gap:4px; margin-bottom:16px; border-bottom:1px solid var(--hairline); }
+  .tab{
+    background:none; border:none; color:var(--paper-dim); padding:9px 4px;
+    margin-right:18px; font-size:13.5px; font-weight:500; cursor:pointer;
+    position:relative; font-family:'Inter',sans-serif;
+  }
+  .tab.active{ color:var(--paper); }
+  .tab.active::after{
+    content:''; position:absolute; left:0; right:0; bottom:-1px; height:2px; background:var(--thread);
+    border-radius:2px;
+  }
+  .tab .flag{
+    display:inline-block; width:6px; height:6px; border-radius:50%; margin-left:6px;
+    background:var(--red); vertical-align:middle;
+  }
+
+  /* ---------- Textarea ---------- */
+  textarea{
+    width:100%; min-height:180px; resize:vertical;
+    background:var(--panel-raised); border:1px solid var(--hairline);
+    border-radius:8px; color:var(--paper); padding:14px 15px;
+    font-family:'Inter',sans-serif; font-size:15px; line-height:1.6;
+    outline:none; transition:border-color .15s;
+  }
+  textarea:focus{ border-color:var(--thread); }
+  textarea.warn{ border-color:var(--amber); }
+  textarea.err{ border-color:var(--red); }
+
+  .meter-row{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-top:10px; gap:16px;
+  }
+  .vu{
+    flex:1; height:6px; background:var(--panel-raised); border-radius:4px; overflow:hidden;
+    border:1px solid var(--hairline);
+  }
+  .vu-fill{ height:100%; border-radius:4px; transition:width .15s ease, background .15s ease; }
+  .count{
+    font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:var(--paper-dim); white-space:nowrap;
+  }
+  .count.warn{ color:var(--amber); }
+  .count.err{ color:var(--red); }
+
+  .msg-list{ margin-top:12px; display:flex; flex-direction:column; gap:8px; }
+  .msg{
+    display:flex; gap:8px; align-items:flex-start; font-size:12.5px; line-height:1.5;
+    padding:9px 11px; border-radius:7px; font-family:'Inter',sans-serif;
+  }
+  .msg.error{ background:rgba(229,88,75,0.1); color:#F3A69E; border:1px solid rgba(229,88,75,0.3); }
+  .msg.warning{ background:rgba(242,169,59,0.1); color:#F5C57E; border:1px solid rgba(242,169,59,0.3); }
+  .msg.ok{ background:rgba(95,191,143,0.1); color:#8FDBB4; border:1px solid rgba(95,191,143,0.3); }
+
+  /* media */
+  .media-row{ display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
+  .media-toggle{
+    display:flex; align-items:center; gap:8px; background:var(--panel-raised);
+    border:1px dashed var(--hairline); border-radius:8px; padding:8px 12px;
+    font-size:12.5px; color:var(--paper-dim); cursor:pointer; user-select:none;
+  }
+  .media-toggle.on{ color:var(--paper); border-style:solid; border-color:var(--thread); background:rgba(108,119,224,0.1);}
+  .media-toggle input{ accent-color:var(--thread); }
+
+  /* ---------- Preview cards ---------- */
+  .preview-card{
+    background:var(--panel-raised); border:1px solid var(--hairline); border-radius:9px;
+    padding:14px; margin-bottom:12px;
+  }
+  .preview-card:last-child{ margin-bottom:0; }
+  .preview-head{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .preview-head .dot{ width:8px; height:8px; border-radius:50%; }
+  .preview-head b{ font-size:12.5px; font-family:'IBM Plex Mono',monospace; letter-spacing:0.04em; }
+  .preview-head .status{ margin-left:auto; font-size:10.5px; font-family:'IBM Plex Mono',monospace; letter-spacing:0.06em; text-transform:uppercase; }
+  .preview-body{ font-size:13.5px; line-height:1.55; color:var(--paper); white-space:pre-wrap; word-break:break-word; }
+  .preview-body.empty{ color:var(--paper-dim); font-style:italic; }
+  .preview-empty-state{ color:var(--paper-dim); font-size:13px; text-align:center; padding:30px 10px; }
+
+  /* ---------- Publish bar ---------- */
+  .publish-bar{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    margin-top:24px; padding-top:20px; border-top:1px solid var(--hairline); flex-wrap:wrap;
+  }
+  .publish-summary{ font-size:12.5px; color:var(--paper-dim); font-family:'IBM Plex Mono',monospace; }
+  .publish-btn{
+    background:var(--thread); color:#fff; border:none; border-radius:8px;
+    padding:12px 22px; font-size:14px; font-weight:600; cursor:pointer;
+    font-family:'Inter',sans-serif; transition:filter .15s, transform .1s;
+  }
+  .publish-btn:hover:not(:disabled){ filter:brightness(1.1); transform:translateY(-1px); }
+  .publish-btn:disabled{ background:#3A3D4C; color:#71748A; cursor:not-allowed; }
+
+  .toast{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+    background:var(--green); color:#0E1A14; padding:12px 20px; border-radius:8px;
+    font-size:13.5px; font-weight:600; font-family:'Inter',sans-serif;
+    box-shadow:0 8px 24px rgba(0,0,0,0.35); animation:rise .25s ease;
+  }
+  @keyframes rise{ from{ opacity:0; transform:translate(-50%,10px);} to{ opacity:1; transform:translate(-50%,0);} }
+
+  .empty-platforms{
+    color:var(--paper-dim); font-size:13.5px; text-align:center; padding:40px 10px;
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useMemo, useEffect } = React;
+
+/* ---------------- Platform definitions ---------------- */
+const PLATFORMS = {
+  x: {
+    id:'x', name:'X / Twitter', color:'#4FA8E0', limit:280,
+    warnAt:0.9, allowsMedia:true, maxMedia:4, mediaRequired:false,
+    icon:'𝕏'
+  },
+  instagram: {
+    id:'instagram', name:'Instagram', color:'#D6478A', limit:2200,
+    warnAt:0.9, allowsMedia:true, maxMedia:10, mediaRequired:true,
+    icon:'◎'
+  },
+  linkedin: {
+    id:'linkedin', name:'LinkedIn', color:'#3B6FE0', limit:3000,
+    warnAt:0.85, allowsMedia:true, maxMedia:9, mediaRequired:false,
+    icon:'in'
+  },
+  facebook: {
+    id:'facebook', name:'Facebook', color:'#5B7CF2', limit:63206,
+    warnAt:0.99, softLimit:500, allowsMedia:true, maxMedia:10, mediaRequired:false,
+    icon:'f'
+  },
+};
+
+/* ---------------- Validation ---------------- */
+function validatePlatform(p, text, hasMedia){
+  const len = text.length;
+  const messages = [];
+  let status = 'ok'; // ok | warning | error
+
+  if (len === 0){
+    return { status:'empty', messages:[{type:'warning', text:'Nothing written yet for this tab.'}], len };
+  }
+
+  if (len > p.limit){
+    status = 'error';
+    messages.push({ type:'error', text:`${len - p.limit} characters over the ${p.limit.toLocaleString()} limit for ${p.name}.` });
+  } else if (len > p.limit * p.warnAt){
+    status = 'warning';
+    messages.push({ type:'warning', text:`Approaching the ${p.limit.toLocaleString()}-character limit (${p.limit - len} left).` });
+  }
+
+  if (p.softLimit && len > p.softLimit && len <= p.limit){
+    messages.push({ type:'warning', text:`Posts over ${p.softLimit} characters tend to get truncated in-feed on ${p.name}.` });
+  }
+
+  if (p.mediaRequired && !hasMedia){
+    status = status === 'error' ? 'error' : 'error';
+    messages.push({ type:'error', text:`${p.name} requires at least one image or video attached.` });
+  }
+
+  if (status === 'ok'){
+    messages.push({ type:'ok', text:'Looks good — within all limits.' });
+  }
+
+  return { status, messages, len };
+}
+
+/* ---------------- Preview snippet ---------------- */
+function Preview({ platform, text, hasMedia }){
+  const p = PLATFORMS[platform];
+  const empty = text.trim().length === 0;
+  const { status } = validatePlatform(p, text, hasMedia);
+  const statusColor = status==='error' ? 'var(--red)' : status==='warning' ? 'var(--amber)' : status==='empty' ? 'var(--paper-dim)' : 'var(--green)';
+  const statusLabel = status==='error' ? 'blocked' : status==='warning' ? 'caution' : status==='empty' ? 'draft' : 'ready';
+
+  return (
+    <div className="preview-card">
+      <div className="preview-head">
+        <span className="dot" style={{background:p.color}}></span>
+        <b>{p.name}</b>
+        <span className="status" style={{color:statusColor}}>{statusLabel}</span>
+      </div>
+      <div className={"preview-body" + (empty ? " empty" : "")}>
+        {empty ? "Nothing composed yet." : text}
+      </div>
+      {hasMedia && !empty && (
+        <div style={{marginTop:'10px', fontSize:'11px', color:'var(--paper-dim)', fontFamily:"'IBM Plex Mono',monospace"}}>
+          + media attached
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Main App ---------------- */
+function App(){
+  const [selected, setSelected] = useState(['x','instagram']);
+  const [activeTab, setActiveTab] = useState('x');
+  const [drafts, setDrafts] = useState({});     // { platformId: text }
+  const [media, setMedia] = useState({});       // { platformId: bool }
+  const [syncText, setSyncText] = useState(true); // one text, applied to all selected
+  const [sharedText, setSharedText] = useState('');
+  const [toast, setToast] = useState(null);
+  const [clock, setClock] = useState(new Date());
+
+  useEffect(() => {
+    const t = setInterval(() => setClock(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    if (selected.length && !selected.includes(activeTab)){
+      setActiveTab(selected[0]);
+    }
+  }, [selected]);
+
+  const togglePlatform = (id) => {
+    setSelected(prev => prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id]);
+  };
+
+  const getText = (id) => syncText ? sharedText : (drafts[id] || '');
+  const setText = (id, val) => {
+    if (syncText){ setSharedText(val); }
+    else { setDrafts(prev => ({...prev, [id]: val})); }
+  };
+
+  const toggleMedia = (id) => setMedia(prev => ({...prev, [id]: !prev[id]}));
+
+  const results = useMemo(() => {
+    const out = {};
+    selected.forEach(id => {
+      const p = PLATFORMS[id];
+      out[id] = validatePlatform(p, getText(id), !!media[id]);
+    });
+    return out;
+  }, [selected, drafts, sharedText, media, syncText]);
+
+  const anyBlocking = selected.some(id => results[id]?.status === 'error') || selected.length === 0
+    || selected.every(id => (getText(id) || '').trim().length === 0);
+
+  const readyCount = selected.filter(id => results[id]?.status === 'ok').length;
+
+  const handlePublish = () => {
+    if (anyBlocking) return;
+    setToast(`Queued for ${selected.length} platform${selected.length>1?'s':''}.`);
+    setTimeout(() => setToast(null), 2600);
+  };
+
+  const active = PLATFORMS[activeTab];
+  const activeText = active ? getText(activeTab) : '';
+  const activeResult = active ? results[activeTab] : null;
+  const activeHasMedia = active ? !!media[activeTab] : false;
+
+  const barColor = (status) => status==='error' ? 'var(--red)' : status==='warning' ? 'var(--amber)' : 'var(--green)';
+
+  return (
+    <div className="app">
+      <div className="masthead">
+        <h1>Broadcast<span>.</span></h1>
+        <div className="clock">{clock.toLocaleTimeString()} · LUDHIANA</div>
+      </div>
+      <p className="subhead">
+        Compose once, validate everywhere. Select target platforms, write your post, and
+        catch character-limit and media-rule violations before they ever go out.
+      </p>
+
+      <div className="grid">
+        {/* ---------------- LEFT COLUMN: composer ---------------- */}
+        <div>
+          <div className="panel">
+            <p className="panel-label">Target platforms</p>
+            <div className="platforms">
+              {Object.values(PLATFORMS).map(p => (
+                <button
+                  key={p.id}
+                  className={"plat-btn" + (selected.includes(p.id) ? " active" : "")}
+                  onClick={() => togglePlatform(p.id)}
+                >
+                  <span className="dot" style={{background:p.color}}></span>
+                  {p.name}
+                  <span className="chk">{selected.includes(p.id) ? "✓" : ""}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="media-row">
+              <label className={"media-toggle" + (syncText ? " on" : "")}>
+                <input type="checkbox" checked={syncText} onChange={e=>setSyncText(e.target.checked)} />
+                Sync one draft across all platforms
+              </label>
+            </div>
+          </div>
+
+          <div className="panel">
+            {selected.length === 0 ? (
+              <div className="empty-platforms">Select at least one platform above to start composing.</div>
+            ) : (
+              <React.Fragment>
+                <div className="tabs">
+                  {selected.map(id => {
+                    const p = PLATFORMS[id];
+                    const r = results[id];
+                    return (
+                      <button
+                        key={id}
+                        className={"tab" + (activeTab===id ? " active" : "")}
+                        onClick={() => setActiveTab(id)}
+                      >
+                        {p.name}
+                        {r && r.status==='error' && <span className="flag"></span>}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <textarea
+                  value={activeText}
+                  onChange={e => setText(activeTab, e.target.value)}
+                  placeholder={`Write your ${active ? active.name : ''} post...`}
+                  className={activeResult && (activeResult.status==='error' ? 'err' : activeResult.status==='warning' ? 'warn' : '')}
+                />
+
+                <div className="meter-row">
+                  <div className="vu">
+                    <div
+                      className="vu-fill"
+                      style={{
+                        width: Math.min(100, (activeResult.len / active.limit) * 100) + '%',
+                        background: barColor(activeResult.status === 'empty' ? 'ok' : activeResult.status)
+                      }}
+                    ></div>
+                  </div>
+                  <div className={"count" + (activeResult.status==='error' ? ' err' : activeResult.status==='warning' ? ' warn' : '')}>
+                    {activeResult.len.toLocaleString()} / {active.limit.toLocaleString()}
+                  </div>
+                </div>
+
+                {active.allowsMedia && (
+                  <div className="media-row">
+                    <label className={"media-toggle" + (activeHasMedia ? " on" : "")}>
+                      <input type="checkbox" checked={activeHasMedia} onChange={() => toggleMedia(activeTab)} />
+                      Attach image / video {active.mediaRequired && '(required)'}
+                    </label>
+                    <span style={{fontSize:'11.5px', color:'var(--paper-dim)', alignSelf:'center', fontFamily:"'IBM Plex Mono',monospace"}}>
+                      max {active.maxMedia} files
+                    </span>
+                  </div>
+                )}
+
+                <div className="msg-list">
+                  {activeResult.messages.map((m, i) => (
+                    <div key={i} className={"msg " + m.type}>
+                      <span>{m.type==='error' ? '⛔' : m.type==='warning' ? '⚠️' : '✅'}</span>
+                      <span>{m.text}</span>
+                    </div>
+                  ))}
+                </div>
+              </React.Fragment>
+            )}
+
+            <div className="publish-bar">
+              <div className="publish-summary">
+                {selected.length > 0
+                  ? `${readyCount}/${selected.length} platform${selected.length>1?'s':''} ready to publish`
+                  : 'No platforms selected'}
+              </div>
+              <button className="publish-btn" disabled={anyBlocking} onClick={handlePublish}>
+                Publish to {selected.length || 0} platform{selected.length===1?'':'s'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ---------------- RIGHT COLUMN: live preview ---------------- */}
+        <div className="panel" style={{height:'fit-content'}}>
+          <p className="panel-label">Live preview</p>
+          {selected.length === 0 ? (
+            <div className="preview-empty-state">Previews will appear here once you select platforms.</div>
+          ) : (
+            selected.map(id => (
+              <Preview key={id} platform={id} text={getText(id)} hasMedia={!!media[id]} />
+            ))
+          )}
+        </div>
+      </div>
+
+      {toast && <div className="toast">{toast}</div>}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
